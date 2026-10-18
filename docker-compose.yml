@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: autonetops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: autonetops
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autonetops"]
+      interval: 10s
+      retries: 5
+    # no published ports: only reachable from the app container
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg://autonetops:${POSTGRES_PASSWORD}@postgres:5432/autonetops
+      AUTO_CREATE_TABLES: "false"
+      BACKUP_DIR: /data/backup_storage
+      SSH_KNOWN_HOSTS_FILE: /data/secrets/known_hosts
+      SECRETS_DIR: /data/secrets
+    volumes:
+      - appdata:/data
+    ports:
+      - "127.0.0.1:8000:8000"   # put a TLS reverse proxy (nginx/Caddy) in front for HTTPS
+
+volumes:
+  pgdata:
+  appdata:

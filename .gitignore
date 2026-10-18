@@ -1,0 +1,15 @@
+# secrets & runtime data - never commit
+.env
+secrets/
+backup_storage/
+logs/
+*.db
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# node
+node_modules/
+frontend/dist/
+.claude/
