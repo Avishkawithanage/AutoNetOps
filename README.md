@@ -1,165 +1,99 @@
 # AutoNetOps
 
-Automated network configuration & backup for Cisco IOS / IOS-XE: SSH backups (manual + scheduled),
-versioned history with SHA-256 integrity, diff & change detection, controlled restore with a
-pre-restore backup and verification, RBAC, audit log, notifications, retention, dashboard.
+**Automated network configuration & backup for Cisco IOS / IOS-XE.**
+Back up device configurations over SSH, keep a verified version history, see what changed, and restore safely.
 
-**User guide: [USER_GUIDE.md](USER_GUIDE.md)** · Full design: [AutoNetOps_Full_Project_Plan.md](AutoNetOps_Full_Project_Plan.md).
+![Python](https://img.shields.io/badge/python-3.12%2B-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-009688) ![React](https://img.shields.io/badge/React-18-61dafb) ![tests](https://img.shields.io/badge/tests-34%20passing-brightgreen)
 
-## Quick start (Windows, no lab needed — mock devices)
+## Features
+
+- **Backups** — manual and scheduled (hourly / daily / weekly / monthly / cron, per-timezone), running + startup config
+- **Versioning** — SHA-256 integrity, duplicate detection, encrypted-at-rest storage, retention policy
+- **Diff & change detection** — line diff, volatile-line filtering, change categories, notifications
+- **Safe restore** — validation, protected pre-restore backup, verification, optional second-person approval, rollback
+- **Security** — JWT auth, roles (viewer / operator / admin), login lockout, encrypted credentials, audit log
+- **Dashboard** — React UI for devices, history, compare, schedules, jobs, restores, reports
+- **Mock mode** — try everything without any network device
+
+## Quick start (mock devices, no lab needed)
 
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements-dev.txt
 cd ..\frontend; npm install; npm run build; cd ..
-# .env already has DRIVER_MODE=mock and a generated ADMIN_PASSWORD (see .env)
+
+copy .env.example .env      # then set ADMIN_PASSWORD (min 10 chars) and DRIVER_MODE=mock
 cd backend
 .\.venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
-Open <http://localhost:8000>, sign in as `admin` with the `ADMIN_PASSWORD` from `.env`.
-In mock mode, add any device (e.g. `192.0.2.10`, any username/password), press **Backup running**,
-then **Simulate change (mock)** and back up again to see change detection and diff.
+Open <http://localhost:8000>, sign in as `admin`, add a device (any IP/credentials in mock mode), run a backup,
+use **Simulate change (mock)**, back up again and compare the versions.
 
-Frontend dev server with hot reload: `cd frontend; npm run dev` (proxies `/api` to port 8000).
+## Documentation
 
-## Running the app
-
-### Prerequisites
-Python 3.12+ (tested on 3.14), Node.js 20+ (only to build the dashboard), Git optional. Docker is only needed for the production setup.
-
-### First-time setup (once)
-```powershell
-cd "E:\my tools\AutoNetOps\backend"
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -r requirements-dev.txt
-cd ..\frontend
-npm install
-npm run build        # creates frontend/dist, which the API serves
-```
-Copy `.env.example` to `.env` and edit it (the existing `.env` is a mock-mode demo config). The first start creates the database, the encryption/JWT keys in `secrets/`, and the admin user from `ADMIN_USERNAME` / `ADMIN_PASSWORD`. If `ADMIN_PASSWORD` is empty, create one with `cd backend; .\.venv\Scripts\python -m app.cli create-admin`.
-
-### Start (everything in one process)
-```powershell
-cd "E:\my tools\AutoNetOps\backend"
-.\.venv\Scripts\python -m uvicorn app.main:app --port 8000
-```
-- Dashboard: <http://localhost:8000> — API docs: <http://localhost:8000/docs> — health: <http://localhost:8000/api/v1/health>
-- Stop with `Ctrl+C`. Jobs that were running when the process stopped are marked `FAILED` (backups) or `UNCERTAIN` (restores) on the next start; pending jobs are re-queued.
-- Run **one** process only (scheduler and device locks are in-process). To reach it from other machines use `--host 0.0.0.0` behind an HTTPS reverse proxy; never expose it plain over a network.
-
-### Development mode (hot reload)
-Two terminals:
-```powershell
-# 1) API with auto-reload
-cd "E:\my tools\AutoNetOps\backend"
-.\.venv\Scripts\python -m uvicorn app.main:app --port 8000 --reload
-# 2) Dashboard with hot reload (proxies /api to :8000)
-cd "E:\my tools\AutoNetOps\frontend"
-npm run dev          # http://localhost:5173
-```
-After changing the frontend, run `npm run build` again if you use the single-process mode.
-
-### Switching modes
-| Goal | `.env` setting |
+| Document | Content |
 |---|---|
-| Demo without any device | `DRIVER_MODE=mock`, `SSH_STRICT_HOST_KEY=false` |
-| Real Cisco devices | `DRIVER_MODE=cisco`, `SSH_STRICT_HOST_KEY=true` + `secrets/known_hosts` |
-| Production database | `DATABASE_URL=postgresql+psycopg://…` and `alembic upgrade head` (run in `backend/`) |
+| [User guide](docs/USER_GUIDE.md) | Using the dashboard: devices, backups, diff, schedules, restore, users |
+| [Running the app](docs/RUNNING.md) | Setup, dev mode, migrations, modes, Docker, troubleshooting |
+| [Project plan](docs/PROJECT_PLAN.md) | Original design and roadmap |
 
-Restart the app after editing `.env`.
+## Real Cisco devices
 
-### Database migrations
-SQLite dev databases are created automatically. For PostgreSQL (or after model changes):
-```powershell
-cd backend
-.\.venv\Scripts\python -m alembic upgrade head
-.\.venv\Scripts\python -m alembic revision --autogenerate -m "describe change"   # when you change models
+1. Set `DRIVER_MODE=cisco` in `.env`. Use **only devices you are authorised to administer** — start in an EVE-NG / GNS3 lab.
+2. Enable SSH v2 on the device and create a least-privilege account.
+3. Add the device host key (strict checking is on by default):
+   `ssh-keyscan -p 22 <device-ip> >> secrets/known_hosts` — verify the fingerprint out-of-band.
+4. Add the device in the UI → **Test connection** → **Backup**.
+
+## Architecture
+
+| Area | Implementation |
+|---|---|
+| API | FastAPI `/api/v1`, JWT, RBAC enforced server-side |
+| Devices | Netmiko driver (`backend/app/network/`), mock driver for demos/tests |
+| Jobs | Bounded thread pool, per-device locks, retries with back-off |
+| Scheduler | APScheduler with duplicate-run guard |
+| Database | SQLAlchemy 2 + Alembic, SQLite (dev) or PostgreSQL |
+| Storage | Fernet-encrypted files in `backup_storage/` |
+| Frontend | React + Vite, served by FastAPI from `frontend/dist` |
+
+```
+backend/    FastAPI app, services, network drivers, migrations
+frontend/   React dashboard
+tests/      pytest suite (mock driver)
+docs/       user guide, run guide, project plan
 ```
 
-### Reset the demo
-Stop the app, then delete `autonetops.db` and the contents of `backup_storage/`. Keep `secrets/` unless you delete the database too: the keys encrypt the stored credentials and backups.
-
-### Docker (production)
-`docker compose up -d --build` (see "Docker / production" below), then open <http://localhost:8000>. Logs: `docker compose logs -f app`. Stop: `docker compose down` (volumes are kept).
-
-### Common start-up problems
-| Problem | Fix |
-|---|---|
-| `No users exist and ADMIN_PASSWORD is unset` in the log | Set `ADMIN_PASSWORD` (≥10 chars) in `.env`, or run `python -m app.cli create-admin` |
-| Blank page / 404 at `/` | `frontend/dist` missing — run `npm run build` |
-| `Address already in use` | Another process uses port 8000 — stop it or pass `--port 8001` |
-| `ModuleNotFoundError: app` | Start uvicorn from the `backend` folder (or use `--app-dir backend`) |
-| `Cannot decrypt value` | `secrets/` or `ENCRYPTION_KEY` changed after devices were added — restore the old key or re-add the devices |
-| Login says "Invalid credentials" | Wrong password or account locked for 15 min after 5 failures |
-
-## Using real Cisco devices
-
-1. In `.env` set `DRIVER_MODE=cisco`. Use **only devices you are authorised to administer** — start with an EVE-NG/GNS3 lab.
-2. On the device: management IP, `ip ssh version 2`, a user with the least privilege that can run `show running-config`
-   (restore additionally needs configuration rights).
-3. Host keys are verified (`SSH_STRICT_HOST_KEY=true`). Add each device key first:
-   `ssh-keyscan -p 22 <device-ip> >> secrets/known_hosts` and compare the fingerprint out-of-band.
-   For a throw-away lab only, you may set `SSH_STRICT_HOST_KEY=false`.
-4. Add the device in the UI → **Test connection** (reports reachability, SSH auth, privilege, platform separately) → backup.
-
-## Tests
+## Testing
 
 ```powershell
 backend\.venv\Scripts\python -m pytest
 ```
 
-34 tests cover auth/RBAC/lockout, credential encryption, backups (changed/unchanged/failed/timeout/auth/invalid output),
-integrity, path traversal, diff, restore (success, merge, abort, connection loss, approval, warnings, blocked commands),
-schedules, retention, reports. They use the in-memory mock driver — **they do not prove behaviour on real Cisco
-hardware** (see Limitations).
+The 34 tests use the mock driver. They do **not** prove behaviour on real Cisco hardware.
 
-## Docker / production
+## Docker
 
 ```bash
 cp .env.example .env   # set POSTGRES_PASSWORD, SECRET_KEY, ENCRYPTION_KEY, ADMIN_PASSWORD, DRIVER_MODE=cisco
 docker compose up -d --build
 ```
 
-Put a TLS reverse proxy (nginx/Caddy) in front: the app binds to `127.0.0.1:8000`. PostgreSQL is not published.
-Back up the `pgdata` and `appdata` volumes **and keep `ENCRYPTION_KEY` separately** — without it credentials and
-backup files cannot be decrypted. Test restoring AutoNetOps itself.
+Binds to `127.0.0.1:8000`; put an HTTPS reverse proxy in front. Back up the volumes and keep `ENCRYPTION_KEY`
+separately — without it credentials and backups cannot be decrypted.
 
-## Architecture (as built)
+## Limitations
 
-| Plan item | Implementation |
-|---|---|
-| API | FastAPI, `/api/v1`, JWT bearer, RBAC (`viewer < operator < admin`) enforced on the backend |
-| Cisco automation | Netmiko driver (`backend/app/network/cisco_ios.py`); all CLI strings in `commands.py`; mock driver for demos/tests |
-| Jobs | Bounded thread pool + per-device locks (`workers/executor.py`); API returns job IDs (202) |
-| Scheduler | APScheduler (hourly / every N hours / daily / weekly / monthly / cron, per-schedule IANA timezone), duplicate-run guard |
-| DB | SQLAlchemy 2 + Alembic; SQLite (dev) or PostgreSQL |
-| Storage | Fernet-encrypted `.cfg.enc` files under `backup_storage/<id>_<name>/YYYY/MM/`; paths built from internal IDs |
-| Diff | `difflib`, normalised view hides volatile lines, heuristic categories (interfaces, VLANs, routing, ACL, NAT…) |
-| Frontend | React + Vite; served by FastAPI from `frontend/dist` |
+- **Restore is not validated on real Cisco gear.** Merge mode cannot delete device-only lines; replace mode needs SCP and
+  `configure replace`. Test in a lab on your exact IOS/IOS-XE release first.
+- Change detection happens when a backup runs, not in real time.
+- Run a single process (`--workers 1`): scheduler and device locks are in-process.
+- Not implemented: device discovery, selective restore, MFA, NX-OS / ASA.
+- Restrict `UPDATE/DELETE` on `audit_logs` at database level for tamper resistance.
 
-Redis/Celery from the plan are **not** used: the plan itself says to start with APScheduler and add Celery when
-volume demands it.
+## Security
 
-## Safety design (restore)
-
-Validate (checksum, same device, running-config only, completeness, blocked commands such as `reload`/`write erase`,
-management-IP warning) → **protected pre-restore backup** (abort if it fails) → apply → re-collect and verify →
-`SUCCESS` / `NEEDS_REVIEW` / `FAILED` / `UNCERTAIN`. Connection loss never counts as success. Roll-back is an explicit
-admin action that restores the pre-restore version. Optional second-person approval (`RESTORE_REQUIRES_APPROVAL=true`).
-
-## Known limitations (read before production)
-
-* **Restore on real Cisco gear is unvalidated.** *Merge* mode replays lines and cannot delete lines that exist only on
-  the device (verification reports them as `NEEDS_REVIEW`). *Replace* mode uses SCP + `configure replace` and needs
-  `ip scp server enable` and a platform that supports it. Validate both on your exact IOS/IOS-XE release in a lab first.
-* Roll-back in *merge* mode has the same limitation; prefer *replace* where supported.
-* Change detection happens when a backup runs — it is not real-time.
-* Per-device locks and the scheduler are in-process: run **one** API process (`--workers 1`). To scale out, move locks
-  to the database/Redis and run the scheduler separately.
-* JWTs are stateless: logout discards the token client-side (tokens expire after `ACCESS_TOKEN_MINUTES`).
-  The token is kept in `sessionStorage`; serve the app over HTTPS and keep dependencies updated.
-* Device discovery (plan §5.4), selective restore, NX-OS/ASA and MFA are not implemented.
-* Audit logs are append-only through the API; for tamper resistance also restrict `UPDATE/DELETE` on `audit_logs`
-  at the database level.
+Never commit `.env`, `secrets/`, databases or `backup_storage/` (already in `.gitignore`).
+Report vulnerabilities privately to the repository owner rather than in a public issue.

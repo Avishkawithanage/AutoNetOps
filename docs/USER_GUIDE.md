@@ -1,6 +1,6 @@
 # AutoNetOps — User Guide
 
-For network administrators and operators. For installation see [README.md](README.md).
+For network administrators and operators. For installation see [README](../README.md).
 
 ## 1. Roles
 
