@@ -8,6 +8,6 @@ netmiko>=4.4
 APScheduler>=3.10,<4
 argon2-cffi>=23.1
 PyJWT>=2.9
-cryptography>=43
+cryptography>=50.0.2
 psycopg[binary]>=3.2
 tzdata
