@@ -41,6 +41,7 @@ use **Simulate change (mock)**, back up again and compare the versions.
 
 | Document | Content |
 |---|---|
+| [How it works](docs/HOW_IT_WORKS.md) | Plain-language explanation of the system, backup and restore flow |
 | [User guide](docs/USER_GUIDE.md) | Using the dashboard: devices, backups, diff, schedules, restore, users |
 | [Running the app](docs/RUNNING.md) | Setup, dev mode, migrations, modes, Docker, troubleshooting |
 | [Project plan](docs/PROJECT_PLAN.md) | Original design and roadmap |
