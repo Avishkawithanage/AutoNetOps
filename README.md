@@ -105,4 +105,3 @@ separately — without it credentials and backups cannot be decrypted.
 ## Security
 
 Never commit `.env`, `secrets/`, databases or `backup_storage/` (already in `.gitignore`).
-Report vulnerabilities privately to the repository owner rather than in a public issue.
