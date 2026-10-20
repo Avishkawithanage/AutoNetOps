@@ -17,6 +17,12 @@ Back up device configurations over SSH, keep a verified version history, see wha
 
 ## Quick start (mock devices, no lab needed)
 
+**Windows, one step:** double-click **`run.bat`**. On first run it creates the Python environment, installs dependencies,
+builds the dashboard, creates a demo `.env` (with a generated admin password shown in the console) and opens the app at
+<http://localhost:8000>. Later runs just start the server. Needs Python 3.12+ and Node.js 20+.
+
+**Manual setup:**
+
 ```powershell
 cd backend
 python -m venv .venv
