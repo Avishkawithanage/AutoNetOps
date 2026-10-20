@@ -5,6 +5,8 @@ Back up device configurations over SSH, keep a verified version history, see wha
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-009688) ![React](https://img.shields.io/badge/React-18-61dafb) ![tests](https://img.shields.io/badge/tests-34%20passing-brightgreen)
 
+![AutoNetOps overview](docs/overview.webp)
+
 ## Features
 
 - **Backups** — manual and scheduled (hourly / daily / weekly / monthly / cron, per-timezone), running + startup config
